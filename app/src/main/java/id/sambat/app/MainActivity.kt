@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
 private fun SambatApp() {
     val context = LocalContext.current
     val recorder = remember(context) { VoiceRecorder(context) }
+    var showWelcome by remember { mutableStateOf(true) }
     var recording by remember { mutableStateOf(false) }
     var recordingReply by remember { mutableStateOf(false) }
     var replyFile by remember { mutableStateOf(recorder.latestReply(recorder.latestClip())) }
@@ -136,6 +137,9 @@ private fun SambatApp() {
         }
     }
 
+    if (showWelcome) {
+        WelcomeScreen(onStart = { showWelcome = false })
+    } else {
     Surface(modifier = Modifier.fillMaxSize(), color = Night) {
         Column(
             modifier = Modifier
@@ -328,6 +332,63 @@ private fun SambatApp() {
             Text(message, color = Lavender, textAlign = TextAlign.Center, lineHeight = 21.sp, fontSize = 14.sp)
             Spacer(Modifier.height(14.dp))
             Text("Cerita disimpan lokal untuk tahap uji coba. Belum dibagikan ke pengguna lain.", color = Color(0xFFAAA1BA), textAlign = TextAlign.Center, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+    }
+    }
+
+}
+
+
+@Composable
+private fun WelcomeScreen(onStart: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Night
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFF30204A), Night)))
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFF3D2A5C), RoundedCornerShape(64.dp))
+                    .padding(horizontal = 34.dp, vertical = 42.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.Headphones, contentDescription = "SAMBAT", tint = Lavender, modifier = Modifier.height(42.dp))
+                    Text("♥", color = Color(0xFFF472B6), fontSize = 30.sp)
+                }
+            }
+            Spacer(Modifier.height(28.dp))
+            Text("SAMBAT", color = SoftWhite, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 4.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("Di sini, kamu boleh bercerita.", color = Lavender, fontSize = 19.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(24.dp))
+            Text(
+                "Ruang aman untuk berbagi cerita melalui suara, saling mendengarkan, dan menyebarkan kebaikan.",
+                color = Color(0xFFD0C7DC), fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 24.sp
+            )
+            Spacer(Modifier.height(38.dp))
+            Button(
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Violet)
+            ) {
+                Icon(Icons.Filled.Mic, contentDescription = null)
+                Spacer(Modifier.padding(horizontal = 4.dp))
+                Text("Mulai Sambat", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            Spacer(Modifier.height(24.dp))
+            Text(
+                "Kamu tidak harus menghadapi semuanya sendirian.",
+                color = Lavender, fontSize = 17.sp, textAlign = TextAlign.Center, lineHeight = 24.sp
+            )
         }
     }
 }
