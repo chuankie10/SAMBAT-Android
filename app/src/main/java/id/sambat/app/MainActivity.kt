@@ -240,11 +240,10 @@ private class VoiceRecorder(context: Context) {
     }
 
     private fun removeExpiredStories() {
-        val expiryMillis = VoiceClipPolicy.STORY_RETENTION_HOURS * 60L * 60L * 1000L
         val now = System.currentTimeMillis()
         storiesDir.listFiles()?.forEach { file ->
             val createdAt = file.name.removePrefix("sambat-").removeSuffix(".m4a").toLongOrNull()
-            if (createdAt != null && now - createdAt >= expiryMillis) file.delete()
+            if (createdAt != null && VoiceClipPolicy.isExpired(createdAt, now)) file.delete()
         }
     }
 
