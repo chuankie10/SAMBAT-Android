@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.media.audiofx.AutomaticGainControl
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -85,13 +86,40 @@ private fun SambatApp() {
     var recordingReply by remember { mutableStateOf(false) }
     var replyFile by remember { mutableStateOf(recorder.latestReply(recorder.latestClip())) }
     var playing by remember { mutableStateOf(false) }
+    var playingFile by remember { mutableStateOf<File?>(null) }
     var elapsed by remember { mutableStateOf(0L) }
     var savedClip by remember { mutableStateOf(recorder.latestClip()) }
     var savedClips by remember { mutableStateOf(recorder.listStories()) }
     var message by remember { mutableStateOf("Rekam cerita suara pertamamu. Ceritamu tersimpan sementara di perangkat ini.") }
 
+    val stopPlayback: () -> Unit = {
+        recorder.stopPlayback()
+        playing = false
+        playingFile = null
+        message = "Pemutaran dihentikan."
+    }
+
+    val startPlayback: (File, String) -> Unit = { file, statusMessage ->
+        try {
+            recorder.play(file) {
+                playing = false
+                playingFile = null
+            }
+            playing = true
+            playingFile = file
+            message = statusMessage
+        } catch (error: Exception) {
+            playing = false
+            playingFile = null
+            message = "Pemutaran gagal: ${error.localizedMessage ?: "kesalahan audio"}"
+        }
+    }
+
     val beginStoryRecording: () -> Unit = {
         try {
+            recorder.stopPlayback()
+            playing = false
+            playingFile = null
             recorder.start()
             recordingReply = false
             elapsed = 0L
@@ -235,6 +263,9 @@ private fun SambatApp() {
                                 message = "Buat cerita terlebih dahulu sebelum merekam balasan."
                             } else {
                                 try {
+                                    recorder.stopPlayback()
+                                    playing = false
+                                    playingFile = null
                                     recorder.startReply(clip)
                                     recordingReply = true
                                     elapsed = 0L
@@ -257,13 +288,8 @@ private fun SambatApp() {
                         onClick = {
                             val reply = replyFile
                             if (reply != null && reply.exists()) {
-                                try {
-                                    recorder.play(reply) { playing = false }
-                                    playing = true
-                                    message = "Memutar balasan suara."
-                                } catch (error: Exception) {
-                                    message = "Balasan gagal diputar: " + (error.localizedMessage ?: "kesalahan audio")
-                                }
+                                if (playing && playingFile == reply) stopPlayback()
+                                else startPlayback(reply, "Memutar balasan suara.")
                             }
                         },
                         enabled = !recording && replyFile?.exists() == true,
@@ -272,28 +298,15 @@ private fun SambatApp() {
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
-                        Text("Dengarkan Balasan")
+                        Text(if (playing && playingFile == replyFile) "Hentikan Balasan" else "Dengarkan Balasan")
                     }
                     OutlinedButton(
                         onClick = {
-                            if (playing) {
-                                recorder.stopPlayback()
-                                playing = false
-                                message = "Pemutaran dihentikan."
-                            } else {
+                            if (playing) stopPlayback()
+                            else {
                                 val clip = savedClip
-                                if (clip == null || !clip.exists()) {
-                                    message = "Belum ada rekaman untuk diputar."
-                                } else {
-                                    try {
-                                        recorder.play(clip) { playing = false }
-                                        playing = true
-                                        message = "Memutar rekaman terakhir."
-                                    } catch (error: Exception) {
-                                        playing = false
-                                        message = "Pemutaran gagal: ${error.localizedMessage ?: "kesalahan audio"}"
-                                    }
-                                }
+                                if (clip == null || !clip.exists()) message = "Belum ada rekaman untuk diputar."
+                                else startPlayback(clip, "Memutar rekaman terakhir.")
                             }
                         },
                         enabled = !recording && (playing || savedClip?.exists() == true),
@@ -331,20 +344,14 @@ private fun SambatApp() {
                             }
                             OutlinedButton(
                                 onClick = {
-                                    try {
-                                        recorder.play(clip) { playing = false }
-                                        playing = true
-                                        message = "Memutar cerita yang dipilih."
-                                    } catch (error: Exception) {
-                                        playing = false
-                                        message = "Pemutaran gagal: " + (error.localizedMessage ?: "kesalahan audio")
-                                    }
+                                    if (playing && playingFile == clip) stopPlayback()
+                                    else startPlayback(clip, "Memutar cerita yang dipilih.")
                                 },
                                 enabled = !recording,
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = "Putar cerita")
-                                Text("Putar")
+                                Text(if (playing && playingFile == clip) "Hentikan" else "Putar")
                             }
                         }
                     }
@@ -424,6 +431,7 @@ private class VoiceRecorder(context: Context) {
     private val appContext = context.applicationContext
     private val storiesDir = File(appContext.filesDir, "voice-stories")
     private var recorder: MediaRecorder? = null
+    private var gainControl: AutomaticGainControl? = null
     private var player: MediaPlayer? = null
     private var output: File? = null
 
@@ -493,6 +501,14 @@ private class VoiceRecorder(context: Context) {
             mediaRecorder.setOutputFile(file.absolutePath)
             mediaRecorder.prepare()
             mediaRecorder.start()
+            if (AutomaticGainControl.isAvailable()) {
+                runCatching {
+                    AutomaticGainControl.create(mediaRecorder.audioSessionId)?.also { effect ->
+                        effect.enabled = true
+                        gainControl = effect
+                    }
+                }
+            }
             recorder = mediaRecorder
             output = file
         } catch (error: Exception) {
@@ -505,6 +521,8 @@ private class VoiceRecorder(context: Context) {
     fun stop(): File? {
         val active = recorder ?: return null
         recorder = null
+        gainControl?.release()
+        gainControl = null
         return try {
             active.stop()
             active.release()
@@ -541,6 +559,8 @@ private class VoiceRecorder(context: Context) {
 
     fun release() {
         stop()
+        gainControl?.release()
+        gainControl = null
         stopPlayer()
     }
 }
