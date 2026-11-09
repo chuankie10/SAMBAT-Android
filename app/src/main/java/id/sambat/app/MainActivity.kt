@@ -278,27 +278,33 @@ private fun SambatApp() {
                     }
                     OutlinedButton(
                         onClick = {
-                            val clip = savedClip
-                            if (clip == null || !clip.exists()) {
-                                message = "Belum ada rekaman untuk diputar."
+                            if (playing) {
+                                recorder.stopPlayback()
+                                playing = false
+                                message = "Pemutaran dihentikan."
                             } else {
-                                try {
-                                    recorder.play(clip) { playing = false }
-                                    playing = true
-                                    message = "Memutar rekaman terakhir."
-                                } catch (error: Exception) {
-                                    playing = false
-                                    message = "Pemutaran gagal: ${error.localizedMessage ?: "kesalahan audio"}"
+                                val clip = savedClip
+                                if (clip == null || !clip.exists()) {
+                                    message = "Belum ada rekaman untuk diputar."
+                                } else {
+                                    try {
+                                        recorder.play(clip) { playing = false }
+                                        playing = true
+                                        message = "Memutar rekaman terakhir."
+                                    } catch (error: Exception) {
+                                        playing = false
+                                        message = "Pemutaran gagal: ${error.localizedMessage ?: "kesalahan audio"}"
+                                    }
                                 }
                             }
                         },
-                        enabled = !recording && savedClip?.exists() == true,
+                        enabled = !recording && (playing || savedClip?.exists() == true),
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                        Icon(if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
-                        Text(if (playing) "Putar Ulang Rekaman" else "Dengarkan Rekaman")
+                        Text(if (playing) "Hentikan Pemutaran" else "Dengarkan Rekaman")
                     }
                 }
             }
@@ -534,6 +540,10 @@ private class VoiceRecorder(context: Context) {
         mediaPlayer.prepare()
         mediaPlayer.start()
         player = mediaPlayer
+    }
+
+    fun stopPlayback() {
+        stopPlayer()
     }
 
     private fun stopPlayer() {
