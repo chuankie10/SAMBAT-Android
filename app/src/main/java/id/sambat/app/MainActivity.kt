@@ -264,7 +264,6 @@ private class VoiceRecorder(context: Context) {
             mediaRecorder.setAudioEncodingBitRate(96_000)
             mediaRecorder.setAudioSamplingRate(44_100)
             mediaRecorder.setOutputFile(file.absolutePath)
-            mediaRecorder.setMaxDuration(MAX_STORY_MILLIS.toInt())
             mediaRecorder.prepare()
             mediaRecorder.start()
             recorder = mediaRecorder
