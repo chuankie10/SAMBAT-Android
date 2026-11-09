@@ -82,7 +82,7 @@ private fun SambatApp() {
     val recorder = remember(context) { VoiceRecorder(context) }
     var recording by remember { mutableStateOf(false) }
     var recordingReply by remember { mutableStateOf(false) }
-    var replyFile by remember { mutableStateOf<File?>(null) }
+    var replyFile by remember { mutableStateOf(recorder.latestReply(recorder.latestClip())) }
     var playing by remember { mutableStateOf(false) }
     var elapsed by remember { mutableStateOf(0L) }
     var savedClip by remember { mutableStateOf(recorder.latestClip()) }
@@ -356,11 +356,25 @@ private class VoiceRecorder(context: Context) {
 
     fun latestClip(): File? = listStories().firstOrNull()
 
+    fun latestReply(story: File?): File? {
+        if (story == null) return null
+        val repliesDir = File(appContext.filesDir, "voice-replies")
+        val storyId = story.nameWithoutExtension.removePrefix("sambat-")
+        return repliesDir.listFiles { file ->
+            file.isFile && file.name.startsWith("reply-${storyId}-") && file.name.endsWith(".m4a")
+        }?.maxByOrNull { it.name }
+    }
+
     private fun removeExpiredStories() {
         val now = System.currentTimeMillis()
         storiesDir.listFiles()?.forEach { file ->
             val createdAt = file.name.removePrefix("sambat-").removeSuffix(".m4a").toLongOrNull()
-            if (createdAt != null && VoiceClipPolicy.isExpired(createdAt, now)) file.delete()
+            if (createdAt != null && VoiceClipPolicy.isExpired(createdAt, now)) {
+                file.delete()
+                val repliesDir = File(appContext.filesDir, "voice-replies")
+                val storyId = file.nameWithoutExtension.removePrefix("sambat-")
+                repliesDir.listFiles()?.filter { it.name.startsWith("reply-${storyId}-") }?.forEach { it.delete() }
+            }
         }
     }
 
