@@ -503,7 +503,7 @@ private class VoiceRecorder(context: Context) {
             mediaRecorder.start()
             if (AutomaticGainControl.isAvailable()) {
                 runCatching {
-                    AutomaticGainControl.create(mediaRecorder.audioSessionId)?.also { effect ->
+                    AutomaticGainControl.create(mediaRecorder.getAudioSessionId())?.also { effect ->
                         effect.enabled = true
                         gainControl = effect
                     }
