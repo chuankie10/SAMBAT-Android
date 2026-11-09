@@ -126,6 +126,7 @@ private fun SambatApp() {
                         message = if (file != null) "Balasan suara 5 detik tersimpan lokal." else "Balasan suara gagal disimpan."
                     } else {
                         savedClip = file
+                        replyFile = recorder.latestReply(file)
                         savedClips = recorder.listStories()
                         recording = false
                         message = if (file != null) "Batas 120 detik tercapai. Cerita tersimpan di perangkat." else "Rekaman tidak dapat disimpan."
@@ -179,6 +180,7 @@ private fun SambatApp() {
                                     message = if (file != null) "Balasan suara tersimpan lokal." else "Balasan suara gagal disimpan."
                                 } else {
                                     savedClip = file
+                                    replyFile = recorder.latestReply(file)
                                     savedClips = recorder.listStories()
                                     recording = false
                                     message = if (file != null) "Cerita tersimpan di perangkat." else "Rekaman gagal disimpan. Coba lagi."
