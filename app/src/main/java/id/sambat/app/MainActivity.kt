@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.media.audiofx.AutomaticGainControl
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -418,6 +419,7 @@ private class VoiceRecorder(context: Context) {
     private val appContext = context.applicationContext
     private val storiesDir = File(appContext.filesDir, "voice-stories")
     private var recorder: MediaRecorder? = null
+    private var gainControl: AutomaticGainControl? = null
     private var player: MediaPlayer? = null
     private var output: File? = null
 
@@ -488,7 +490,14 @@ private class VoiceRecorder(context: Context) {
             mediaRecorder.start()
             recorder = mediaRecorder
             output = file
+            // Aktifkan AGC perangkat bila tersedia agar suara pelan diperkuat saat direkam.
+            gainControl = if (AutomaticGainControl.isAvailable()) {
+                runCatching {
+                    AutomaticGainControl.create(mediaRecorder.audioSessionId)?.apply { enabled = true }
+                }.getOrNull()
+            } else null
         } catch (error: Exception) {
+            releaseGainControl()
             mediaRecorder.release()
             file.delete()
             throw error
@@ -506,6 +515,8 @@ private class VoiceRecorder(context: Context) {
             active.release()
             output?.delete()
             null
+        } finally {
+            releaseGainControl()
         }
     }
 
@@ -528,8 +539,14 @@ private class VoiceRecorder(context: Context) {
         player = null
     }
 
+    private fun releaseGainControl() {
+        gainControl?.runCatching { enabled = false; release() }
+        gainControl = null
+    }
+
     fun release() {
         stop()
+        releaseGainControl()
         stopPlayer()
     }
 }
