@@ -2,11 +2,9 @@ package id.sambat.app
 
 import android.Manifest
 import android.content.Context
-import android.media.AudioManager
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
-import android.media.audiofx.AutomaticGainControl
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -426,7 +424,6 @@ private class VoiceRecorder(context: Context) {
     private val appContext = context.applicationContext
     private val storiesDir = File(appContext.filesDir, "voice-stories")
     private var recorder: MediaRecorder? = null
-    private var gainControl: AutomaticGainControl? = null
     private var player: MediaPlayer? = null
     private var output: File? = null
 
@@ -487,9 +484,8 @@ private class VoiceRecorder(context: Context) {
             MediaRecorder()
         }
         try {
-            val audioSessionId = (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).generateAudioSessionId()
-            mediaRecorder.setAudioSessionId(audioSessionId)
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            // VOICE_COMMUNICATION memungkinkan pemrosesan suara/AGC bawaan perangkat bila tersedia.
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             mediaRecorder.setAudioEncodingBitRate(96_000)
@@ -499,14 +495,7 @@ private class VoiceRecorder(context: Context) {
             mediaRecorder.start()
             recorder = mediaRecorder
             output = file
-            // Aktifkan AGC perangkat bila tersedia agar suara pelan diperkuat saat direkam.
-            gainControl = if (AutomaticGainControl.isAvailable()) {
-                runCatching {
-                    AutomaticGainControl.create(audioSessionId)?.apply { enabled = true }
-                }.getOrNull()
-            } else null
         } catch (error: Exception) {
-            releaseGainControl()
             mediaRecorder.release()
             file.delete()
             throw error
@@ -524,8 +513,6 @@ private class VoiceRecorder(context: Context) {
             active.release()
             output?.delete()
             null
-        } finally {
-            releaseGainControl()
         }
     }
 
@@ -552,14 +539,8 @@ private class VoiceRecorder(context: Context) {
         player = null
     }
 
-    private fun releaseGainControl() {
-        gainControl?.runCatching { enabled = false; release() }
-        gainControl = null
-    }
-
     fun release() {
         stop()
-        releaseGainControl()
         stopPlayer()
     }
 }
