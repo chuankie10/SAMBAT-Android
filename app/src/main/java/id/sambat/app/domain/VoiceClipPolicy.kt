@@ -42,4 +42,10 @@ object VoiceClipPolicy {
 
     fun expiresAt(createdAt: Instant): Instant =
         createdAt.plus(Duration.ofHours(STORY_RETENTION_HOURS))
+
+    fun isExpired(createdAtMillis: Long, nowMillis: Long): Boolean {
+        if (nowMillis < createdAtMillis) return false
+        val retentionMillis = Duration.ofHours(STORY_RETENTION_HOURS).toMillis()
+        return nowMillis - createdAtMillis >= retentionMillis
+    }
 }
