@@ -58,6 +58,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import java.io.File
 import java.util.Locale
+import id.sambat.app.domain.VoiceClipPolicy
 
 private val Night = Color(0xFF171323)
 private val Violet = Color(0xFF8B5CF6)
@@ -79,7 +80,7 @@ private fun SambatApp() {
     var recording by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(false) }
     var elapsed by remember { mutableStateOf(0L) }
-    var savedClip by remember { mutableStateOf<File?>(null) }
+    var savedClip by remember { mutableStateOf(recorder.latestClip()) }
     var message by remember { mutableStateOf("Rekam cerita suara pertamamu. Ceritamu tersimpan sementara di perangkat ini.") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -221,13 +222,35 @@ private fun formatDuration(milliseconds: Long): String {
 
 private class VoiceRecorder(context: Context) {
     private val appContext = context.applicationContext
+    private val storiesDir = File(appContext.filesDir, "voice-stories")
     private var recorder: MediaRecorder? = null
     private var player: MediaPlayer? = null
     private var output: File? = null
 
+    init {
+        storiesDir.mkdirs()
+        removeExpiredStories()
+    }
+
+    fun latestClip(): File? {
+        removeExpiredStories()
+        return storiesDir.listFiles { file ->
+            file.isFile && file.name.startsWith("sambat-") && file.name.endsWith(".m4a")
+        }?.maxByOrNull { it.name }
+    }
+
+    private fun removeExpiredStories() {
+        val expiryMillis = VoiceClipPolicy.STORY_RETENTION_HOURS * 60L * 60L * 1000L
+        val now = System.currentTimeMillis()
+        storiesDir.listFiles()?.forEach { file ->
+            val createdAt = file.name.removePrefix("sambat-").removeSuffix(".m4a").toLongOrNull()
+            if (createdAt != null && now - createdAt >= expiryMillis) file.delete()
+        }
+    }
+
     fun start() {
         stopPlayer()
-        val file = File(appContext.cacheDir, "sambat-${System.currentTimeMillis()}.m4a")
+        val file = File(storiesDir, "sambat-${System.currentTimeMillis()}.m4a")
         val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(appContext)
         } else {
