@@ -81,6 +81,7 @@ private fun SambatApp() {
     var playing by remember { mutableStateOf(false) }
     var elapsed by remember { mutableStateOf(0L) }
     var savedClip by remember { mutableStateOf(recorder.latestClip()) }
+    var savedClips by remember { mutableStateOf(recorder.listStories()) }
     var message by remember { mutableStateOf("Rekam cerita suara pertamamu. Ceritamu tersimpan sementara di perangkat ini.") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -113,6 +114,7 @@ private fun SambatApp() {
                 if (elapsed >= MAX_STORY_MILLIS) {
                     val file = recorder.stop()
                     savedClip = file
+                    savedClips = recorder.listStories()
                     recording = false
                     message = if (file != null) "Batas 120 detik tercapai. Rekaman tersimpan di perangkat." else "Rekaman tidak dapat disimpan."
                 }
@@ -157,6 +159,7 @@ private fun SambatApp() {
                             if (recording) {
                                 val file = recorder.stop()
                                 savedClip = file
+                                savedClips = recorder.listStories()
                                 recording = false
                                 message = if (file != null) "Rekaman tersimpan sementara di perangkat." else "Rekaman gagal disimpan. Coba lagi."
                             } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -207,6 +210,50 @@ private fun SambatApp() {
                     }
                 }
             }
+            if (savedClips.isNotEmpty()) {
+                Spacer(Modifier.height(18.dp))
+                Text("CERITA TERSIMPAN", color = Lavender, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(8.dp))
+                savedClips.take(3).forEachIndexed { index, clip ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF282137)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Cerita " + (savedClips.size - index), color = SoftWhite, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    java.text.SimpleDateFormat("dd MMM, HH:mm", Locale("id", "ID")).format(java.util.Date(clip.lastModified())),
+                                    color = Color(0xFFAAA1BA),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        recorder.play(clip) { playing = false }
+                                        playing = true
+                                        message = "Memutar cerita yang dipilih."
+                                    } catch (error: Exception) {
+                                        playing = false
+                                        message = "Pemutaran gagal: " + (error.localizedMessage ?: "kesalahan audio")
+                                    }
+                                },
+                                enabled = !recording,
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = "Putar cerita")
+                                Text("Putar")
+                            }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(18.dp))
             Text(message, color = Lavender, textAlign = TextAlign.Center, lineHeight = 21.sp, fontSize = 14.sp)
             Spacer(Modifier.height(14.dp))
@@ -232,12 +279,14 @@ private class VoiceRecorder(context: Context) {
         removeExpiredStories()
     }
 
-    fun latestClip(): File? {
+    fun listStories(): List<File> {
         removeExpiredStories()
         return storiesDir.listFiles { file ->
             file.isFile && file.name.startsWith("sambat-") && file.name.endsWith(".m4a")
-        }?.maxByOrNull { it.name }
+        }?.sortedByDescending { it.name } ?: emptyList()
     }
+
+    fun latestClip(): File? = listStories().firstOrNull()
 
     private fun removeExpiredStories() {
         val now = System.currentTimeMillis()
