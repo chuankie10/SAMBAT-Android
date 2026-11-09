@@ -2,6 +2,7 @@ package id.sambat.app
 
 import android.Manifest
 import android.content.Context
+import android.media.AudioManager
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
@@ -480,6 +481,8 @@ private class VoiceRecorder(context: Context) {
             MediaRecorder()
         }
         try {
+            val audioSessionId = (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).generateAudioSessionId()
+            mediaRecorder.setAudioSessionId(audioSessionId)
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -493,7 +496,7 @@ private class VoiceRecorder(context: Context) {
             // Aktifkan AGC perangkat bila tersedia agar suara pelan diperkuat saat direkam.
             gainControl = if (AutomaticGainControl.isAvailable()) {
                 runCatching {
-                    AutomaticGainControl.create(mediaRecorder.audioSessionId)?.apply { enabled = true }
+                    AutomaticGainControl.create(audioSessionId)?.apply { enabled = true }
                 }.getOrNull()
             } else null
         } catch (error: Exception) {
