@@ -46,6 +46,15 @@ class VoiceClipPolicyTest {
     }
 
     @Test
+    fun storyRetentionExpiresAtTwentyFourHourBoundary() {
+        val createdAt = 1_000_000L
+        val retention = 24L * 60L * 60L * 1000L
+        assertEquals(false, VoiceClipPolicy.isExpired(createdAt, createdAt + retention - 1L))
+        assertEquals(true, VoiceClipPolicy.isExpired(createdAt, createdAt + retention))
+        assertEquals(false, VoiceClipPolicy.isExpired(createdAt, createdAt - 1L))
+    }
+
+    @Test
     fun storyExpiresExactlyAfterTwentyFourHours() {
         val createdAt = Instant.parse("2026-11-09T06:00:00Z")
         assertEquals(
