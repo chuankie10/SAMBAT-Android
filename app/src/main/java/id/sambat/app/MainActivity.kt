@@ -67,6 +67,7 @@ private val Violet = Color(0xFF8B5CF6)
 private val Lavender = Color(0xFFE9D5FF)
 private val SoftWhite = Color(0xFFF8F5FF)
 private const val MAX_STORY_MILLIS = 120_000L
+private const val MAX_REPLY_MILLIS = 5_000L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,6 +81,8 @@ private fun SambatApp() {
     val context = LocalContext.current
     val recorder = remember(context) { VoiceRecorder(context) }
     var recording by remember { mutableStateOf(false) }
+    var recordingReply by remember { mutableStateOf(false) }
+    var replyFile by remember { mutableStateOf<File?>(null) }
     var playing by remember { mutableStateOf(false) }
     var elapsed by remember { mutableStateOf(0L) }
     var savedClip by remember { mutableStateOf(recorder.latestClip()) }
@@ -107,18 +110,26 @@ private fun SambatApp() {
         onDispose { recorder.release() }
     }
 
-    LaunchedEffect(recording) {
+    LaunchedEffect(recording, recordingReply) {
         if (recording) {
             val startedAt = SystemClock.elapsedRealtime()
             while (recording) {
                 delay(250)
-                elapsed = (SystemClock.elapsedRealtime() - startedAt).coerceAtMost(MAX_STORY_MILLIS)
-                if (elapsed >= MAX_STORY_MILLIS) {
+                val limit = if (recordingReply) MAX_REPLY_MILLIS else MAX_STORY_MILLIS
+                elapsed = (SystemClock.elapsedRealtime() - startedAt).coerceAtMost(limit)
+                if (elapsed >= limit) {
                     val file = recorder.stop()
-                    savedClip = file
-                    savedClips = recorder.listStories()
-                    recording = false
-                    message = if (file != null) "Batas 120 detik tercapai. Rekaman tersimpan di perangkat." else "Rekaman tidak dapat disimpan."
+                    if (recordingReply) {
+                        replyFile = file
+                        recording = false
+                        recordingReply = false
+                        message = if (file != null) "Balasan suara 5 detik tersimpan lokal." else "Balasan suara gagal disimpan."
+                    } else {
+                        savedClip = file
+                        savedClips = recorder.listStories()
+                        recording = false
+                        message = if (file != null) "Batas 120 detik tercapai. Cerita tersimpan di perangkat." else "Rekaman tidak dapat disimpan."
+                    }
                 }
             }
         }
@@ -155,19 +166,27 @@ private fun SambatApp() {
                     Text(if (recording) "SEDANG MEREKAM" else "RUANG CERITAMU", color = Lavender, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Spacer(Modifier.height(12.dp))
                     Text(formatDuration(elapsed), color = SoftWhite, fontSize = 38.sp, fontWeight = FontWeight.Bold)
-                    Text("Maksimal 02:00 menit", color = Color(0xFFC9C0D8), fontSize = 13.sp)
+                    Text(if (recordingReply) "Balasan maksimal 00:05 detik" else "Cerita maksimal 02:00 menit", color = Color(0xFFC9C0D8), fontSize = 13.sp)
                     Spacer(Modifier.height(18.dp))
                     Button(
                         onClick = {
                             if (recording) {
                                 val file = recorder.stop()
-                                savedClip = file
-                                savedClips = recorder.listStories()
-                                recording = false
-                                message = if (file != null) "Rekaman tersimpan sementara di perangkat." else "Rekaman gagal disimpan. Coba lagi."
+                                if (recordingReply) {
+                                    replyFile = file
+                                    recording = false
+                                    recordingReply = false
+                                    message = if (file != null) "Balasan suara tersimpan lokal." else "Balasan suara gagal disimpan."
+                                } else {
+                                    savedClip = file
+                                    savedClips = recorder.listStories()
+                                    recording = false
+                                    message = if (file != null) "Cerita tersimpan di perangkat." else "Rekaman gagal disimpan. Coba lagi."
+                                }
                             } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                                 try {
                                     recorder.start()
+                                    recordingReply = false
                                     elapsed = 0L
                                     recording = true
                                     message = "Sedang merekam. Tekan Selesai jika sudah cukup."
@@ -187,6 +206,52 @@ private fun SambatApp() {
                         Text(if (recording) "Selesai Merekam" else "Mulai Merekam", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                     Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val clip = savedClip
+                            if (clip == null) {
+                                message = "Buat cerita terlebih dahulu sebelum merekam balasan."
+                            } else {
+                                try {
+                                    recorder.startReply(clip)
+                                    recordingReply = true
+                                    elapsed = 0L
+                                    recording = true
+                                    message = "Sedang merekam balasan. Durasi maksimal 5 detik."
+                                } catch (error: Exception) {
+                                    message = "Balasan gagal dimulai: " + (error.localizedMessage ?: "kesalahan perangkat")
+                                }
+                            }
+                        },
+                        enabled = !recording && savedClip?.exists() == true,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Filled.Mic, contentDescription = null)
+                        Spacer(Modifier.padding(horizontal = 4.dp))
+                        Text("Rekam Balasan Suara (5 detik)")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val reply = replyFile
+                            if (reply != null && reply.exists()) {
+                                try {
+                                    recorder.play(reply) { playing = false }
+                                    playing = true
+                                    message = "Memutar balasan suara."
+                                } catch (error: Exception) {
+                                    message = "Balasan gagal diputar: " + (error.localizedMessage ?: "kesalahan audio")
+                                }
+                            }
+                        },
+                        enabled = !recording && replyFile?.exists() == true,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                        Spacer(Modifier.padding(horizontal = 4.dp))
+                        Text("Dengarkan Balasan")
+                    }
                     OutlinedButton(
                         onClick = {
                             val clip = savedClip
@@ -300,8 +365,19 @@ private class VoiceRecorder(context: Context) {
     }
 
     fun start() {
+        startToFile(File(storiesDir, "sambat-${System.currentTimeMillis()}.m4a"))
+    }
+
+    fun startReply(story: File) {
+        val repliesDir = File(appContext.filesDir, "voice-replies")
+        repliesDir.mkdirs()
+        val storyId = story.nameWithoutExtension.removePrefix("sambat-")
+        val reply = File(repliesDir, "reply-${storyId}-${System.currentTimeMillis()}.m4a")
+        startToFile(reply)
+    }
+
+    private fun startToFile(file: File) {
         stopPlayer()
-        val file = File(storiesDir, "sambat-${System.currentTimeMillis()}.m4a")
         val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(appContext)
         } else {
