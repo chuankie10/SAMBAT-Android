@@ -90,20 +90,36 @@ private fun SambatApp() {
     var savedClips by remember { mutableStateOf(recorder.listStories()) }
     var message by remember { mutableStateOf("Rekam cerita suara pertamamu. Ceritamu tersimpan sementara di perangkat ini.") }
 
+    val beginStoryRecording: () -> Unit = {
+        try {
+            recorder.start()
+            recordingReply = false
+            elapsed = 0L
+            recording = true
+            message = "Sedang merekam. Tekan Selesai jika sudah cukup."
+        } catch (error: Exception) {
+            recording = false
+            message = "Rekaman gagal dimulai: ${error.localizedMessage ?: "kesalahan perangkat"}"
+        }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
+        showWelcome = false
         if (granted) {
-            try {
-                recorder.start()
-                elapsed = 0L
-                recording = true
-                message = "Sedang merekam. Tekan Selesai jika sudah cukup."
-            } catch (error: Exception) {
-                message = "Rekaman gagal dimulai: ${error.localizedMessage ?: "kesalahan perangkat"}"
-            }
+            beginStoryRecording()
         } else {
-            message = "Izin mikrofon diperlukan agar SAMBAT dapat merekam suara."
+            message = "Izin mikrofon ditolak. Aktifkan izin Mikrofon di Pengaturan aplikasi SAMBAT, lalu coba lagi."
+        }
+    }
+
+    val startFromWelcome: () -> Unit = {
+        showWelcome = false
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            beginStoryRecording()
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -138,7 +154,7 @@ private fun SambatApp() {
     }
 
     if (showWelcome) {
-        WelcomeScreen(onStart = { showWelcome = false })
+        WelcomeScreen(onStart = startFromWelcome)
     } else {
     Surface(modifier = Modifier.fillMaxSize(), color = Night) {
         Column(
