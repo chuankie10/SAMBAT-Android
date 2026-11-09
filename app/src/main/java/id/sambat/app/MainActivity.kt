@@ -66,8 +66,8 @@ private val Night = Color(0xFF171323)
 private val Violet = Color(0xFF8B5CF6)
 private val Lavender = Color(0xFFE9D5FF)
 private val SoftWhite = Color(0xFFF8F5FF)
-private const val MAX_STORY_MILLIS = 120_000L
-private const val MAX_REPLY_MILLIS = 5_000L
+private const val MAX_STORY_MILLIS = VoiceClipPolicy.MAX_STORY_DURATION_SECONDS * 1_000L
+private const val MAX_REPLY_MILLIS = VoiceClipPolicy.MAX_REPLY_DURATION_SECONDS * 1_000L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,7 +114,7 @@ private fun SambatApp() {
         if (recording) {
             val startedAt = SystemClock.elapsedRealtime()
             while (recording) {
-                delay(250)
+                delay(if (recordingReply) 50 else 250)
                 val limit = if (recordingReply) MAX_REPLY_MILLIS else MAX_STORY_MILLIS
                 elapsed = (SystemClock.elapsedRealtime() - startedAt).coerceAtMost(limit)
                 if (elapsed >= limit) {
